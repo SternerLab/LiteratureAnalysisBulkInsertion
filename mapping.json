@@ -1,0 +1,81 @@
+{
+  "beckett_jstor_ngrams_term_vectors": {
+    "mappings": {
+      "article": {
+        "properties": {
+          "article-id": {
+            "properties": {
+              "#text": {
+                "fields": {
+                  "keyword": {
+                    "ignore_above": 256,
+                    "type": "keyword"
+                  }
+                },
+                "type": "text"
+              },
+              "@pub-id-type": {
+                "fields": {
+                  "keyword": {
+                    "ignore_above": 256,
+                    "type": "keyword"
+                  }
+                },
+                "type": "text"
+              }
+            }
+          },
+          "year": {
+            "fields": {
+              "keyword": {
+                "ignore_above": 256,
+                "type": "keyword"
+              }
+            },
+            "type": "text"
+          },
+          "journal-id": {
+            "properties": {
+              "#text": {
+                "fields": {
+                  "keyword": {
+                    "ignore_above": 256,
+                    "type": "keyword"
+                  }
+                },
+                "type": "text"
+              },
+              "@journal-id-type": {
+                "fields": {
+                  "keyword": {
+                    "ignore_above": 256,
+                    "type": "keyword"
+                  }
+                },
+                "type": "text"
+              }
+            }
+          },
+          "journal-title": {
+            "fields": {
+              "keyword": {
+                "ignore_above": 256,
+                "type": "keyword"
+              }
+            },
+            "type": "text"
+          },
+          "plain_text": {
+            "fields": {
+              "keyword": {
+                "ignore_above": 256,
+                "type": "keyword"
+              }
+            },
+            "type": "text"
+          }
+        }
+      }
+    }
+  }
+}
