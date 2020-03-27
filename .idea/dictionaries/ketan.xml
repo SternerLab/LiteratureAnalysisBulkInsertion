@@ -2,6 +2,7 @@
   <dictionary name="ketan">
     <words>
       <w>elasticsearch</w>
+      <w>termvector</w>
     </words>
   </dictionary>
 </component>
