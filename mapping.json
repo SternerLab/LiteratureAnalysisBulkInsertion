@@ -1,78 +1,111 @@
 {
   "beckett_jstor_ngrams_term_vectors": {
     "mappings": {
-      "article": {
-        "properties": {
-          "article-id": {
-            "properties": {
-              "#text": {
-                "fields": {
-                  "keyword": {
-                    "ignore_above": 256,
-                    "type": "keyword"
-                  }
-                },
-                "type": "text"
+      "properties": {
+        "article-id": {
+          "properties": {
+            "#text": {
+              "fields": {
+                "keyword": {
+                  "ignore_above": 256,
+                  "type": "keyword"
+                }
               },
-              "@pub-id-type": {
-                "fields": {
-                  "keyword": {
-                    "ignore_above": 256,
-                    "type": "keyword"
-                  }
-                },
-                "type": "text"
-              }
+              "type": "text"
+            },
+            "@pub-id-type": {
+              "fields": {
+                "keyword": {
+                  "ignore_above": 256,
+                  "type": "keyword"
+                }
+              },
+              "type": "text"
+            }
+          }
+        },
+        "year": {
+          "fields": {
+            "keyword": {
+              "ignore_above": 256,
+              "type": "keyword"
             }
           },
-          "year": {
-            "fields": {
-              "keyword": {
-                "ignore_above": 256,
-                "type": "keyword"
-              }
-            },
-            "type": "text"
-          },
-          "journal-id": {
-            "properties": {
-              "#text": {
-                "fields": {
-                  "keyword": {
-                    "ignore_above": 256,
-                    "type": "keyword"
-                  }
-                },
-                "type": "text"
+          "type": "text"
+        },
+        "journal-id": {
+          "properties": {
+            "#text": {
+              "fields": {
+                "keyword": {
+                  "ignore_above": 256,
+                  "type": "keyword"
+                }
               },
-              "@journal-id-type": {
-                "fields": {
-                  "keyword": {
-                    "ignore_above": 256,
-                    "type": "keyword"
-                  }
-                },
-                "type": "text"
-              }
+              "type": "text"
+            },
+            "@journal-id-type": {
+              "fields": {
+                "keyword": {
+                  "ignore_above": 256,
+                  "type": "keyword"
+                }
+              },
+              "type": "text"
+            }
+          }
+        },
+        "journal-title": {
+          "fields": {
+            "keyword": {
+              "ignore_above": 256,
+              "type": "keyword"
             }
           },
-          "journal-title": {
-            "fields": {
-              "keyword": {
-                "ignore_above": 256,
-                "type": "keyword"
-              }
-            },
-            "type": "text"
+          "type": "text"
+        },
+        "plain_text": {
+          "fields": {
+            "keyword": {
+              "ignore_above": 256,
+              "type": "keyword"
+            }
           },
-          "plain_text": {
-            "fields": {
-              "keyword": {
-                "ignore_above": 256,
-                "type": "keyword"
+          "type": "text"
+        },
+        "term_vectors": {
+          "properties": {
+            "plain_text": {
+              "properties": {
+                "field_statistics": {
+                  "doc_count": {
+                    "type": "integer"
+                  },
+                  "sum_ttf": {
+                    "type": "integer"
+                  },
+                  "sum_doc_freq": {
+                    "type": "integer"
+                  }
+                },
+                "terms": {
+                  "properties": {
+                    "gram": {
+                      "fields": {
+                        "keyword": {
+                          "ignore_above": 256,
+                          "type": "keyword"
+                        }
+                      },
+                      "type": "text"
+                    },
+                    "term_count": {
+                      "type": "integer"
+                    }
+                  }
+                }
               }
-            },
-            "type": "text"
+            }
           }
         }
       }
