@@ -10,7 +10,6 @@ class ElasticsearchConnection:
         self.es_auth_user = es_auth_user
         self.es_auth_password = es_auth_password
 
-    @property
     def get_elasticsearch_client(self):
         try:
             elasticsearch_client = elasticsearch.Elasticsearch([self.es_host], http_auth=self.es_auth_user
