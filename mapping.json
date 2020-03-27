@@ -75,34 +75,30 @@
         },
         "term_vectors": {
           "properties": {
-            "plain_text": {
+            "field_statistics": {
+              "doc_count": {
+                "type": "integer"
+              },
+              "sum_ttf": {
+                "type": "integer"
+              },
+              "sum_doc_freq": {
+                "type": "integer"
+              }
+            },
+            "terms": {
               "properties": {
-                "field_statistics": {
-                  "doc_count": {
-                    "type": "integer"
-                  },
-                  "sum_ttf": {
-                    "type": "integer"
-                  },
-                  "sum_doc_freq": {
-                    "type": "integer"
-                  }
-                },
-                "terms": {
-                  "properties": {
-                    "gram": {
-                      "fields": {
-                        "keyword": {
-                          "ignore_above": 256,
-                          "type": "keyword"
-                        }
-                      },
-                      "type": "text"
-                    },
-                    "term_count": {
-                      "type": "integer"
+                "gram": {
+                  "fields": {
+                    "keyword": {
+                      "ignore_above": 256,
+                      "type": "keyword"
                     }
-                  }
+                  },
+                  "type": "text"
+                },
+                "term_count": {
+                  "type": "integer"
                 }
               }
             }
