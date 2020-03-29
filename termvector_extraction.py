@@ -31,5 +31,5 @@ if __name__ == "__main__":
     #                                       index=INDEX_NAME)
     # print(type(all_docs))
     # for doc in all_docs:
-    print(json.dumps(termvector_extractor.get_termvectors_for_doc(42785293, ['plain_text'])))
+    pprint.pprint(termvector_extractor.get_termvectors_for_doc(0, ['plain_text']))
 
