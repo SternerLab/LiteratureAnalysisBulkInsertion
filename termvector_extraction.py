@@ -18,16 +18,17 @@ class TermvectorExtraction:
 
 
 if __name__ == "__main__":
-    ES_HOST = 'localhost:9200'
-    INDEX_NAME = "ramuji"
-    DOC_TYPE = "_doc"
-    db_connection = elasticsearch_connection.ElasticsearchConnection(ES_HOST)
-    elasticsearch_client = db_connection.get_elasticsearch_client
+    ES_AUTH_USER = 'ketan'
+    ES_AUTH_PASSWORD = 'hk7PDr0I4toBA%e'
+    ES_HOST = 'http://diging-elastic.asu.edu/elastic'
+    db_connection = elasticsearch_connection.ElasticsearchConnection(ES_HOST, ES_AUTH_USER, ES_AUTH_PASSWORD)
+    INDEX_NAME = "beckett_jstor_ngrams_part"
+    DOC_TYPE = "article"
+    elasticsearch_client = db_connection.get_elasticsearch_client()
     termvector_extractor = TermvectorExtraction(ES_HOST, INDEX_NAME, DOC_TYPE, elasticsearch_client)
-
-    all_docs = elasticsearch.helpers.scan(termvector_extractor.elasticsearch_client, query={"query": {"match_all": {}}}, scroll='1m',
-                                          index=INDEX_NAME)
-    print(type(all_docs))
-    for doc in all_docs:
-        print(json.dumps(termvector_extractor.get_termvectors_for_doc(doc['_id'], ['plain_text'])))
-
+    #
+    # all_docs = elasticsearch.helpers.scan(termvector_extractor.elasticsearch_client, query={"query": {"match_all": {}}}, scroll='1m',
+    #                                       index=INDEX_NAME)
+    # print(type(all_docs))
+    # for doc in all_docs:
+    pprint.pprint(termvector_extractor.get_termvectors_for_doc(0, ['plain_text']))

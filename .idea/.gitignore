@@ -2,3 +2,8 @@
 /workspace.xml
 *.xml
 *.pyc
+/Data/*
+*.json
+\Data\*
+Data
+
