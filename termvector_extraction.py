@@ -32,4 +32,3 @@ if __name__ == "__main__":
     # print(type(all_docs))
     # for doc in all_docs:
     pprint.pprint(termvector_extractor.get_termvectors_for_doc(0, ['plain_text']))
-

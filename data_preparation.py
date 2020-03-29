@@ -51,6 +51,7 @@ def term_vector_processing(term_vector):
         terms = term_vector["term_vectors"]["plain_text"]["terms"]
         term_counter = 0
         for term in terms:
+
             pool.apply_async(term_process, args=(term_list, term_counter, term, terms[term]))
             term_counter += 1
 
@@ -60,6 +61,7 @@ def term_vector_processing(term_vector):
                               "terms": list(term_list)}
         return return_term_vector
     return {}
+
 
 
 def process_doc(document, shared_doc_dict, index, terms):
@@ -72,6 +74,8 @@ def process_doc(document, shared_doc_dict, index, terms):
     temp_dict["journal-title"] = document["_source"]["article"]["journal-meta"]["journal-title"]
     temp_dict["term_vectors"] = term_vector_processing(terms)
     shared_doc_dict[index] = temp_dict
+
+
 
 
 def process(elasticsearch_client):
@@ -113,6 +117,7 @@ def process(elasticsearch_client):
         count += 1
         utils.json_file_writer("./Data/", "result_{}.json".format(count), json.dumps(list(shared_doc_dict.values())))
         print(len(list(shared_doc_dict.values())))
+
 
 
 if __name__ == "__main__":
