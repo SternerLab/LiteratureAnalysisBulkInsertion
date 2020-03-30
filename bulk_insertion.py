@@ -1,4 +1,5 @@
 import logging
+import os
 import time
 
 from elasticsearch_connection import ElasticsearchConnection
@@ -67,6 +68,8 @@ def init():
     for i, file in enumerate(files_to_proceed):
         json_iterator = JsonIterator("", file, index_name, doc_type)
         insert_bulk_data_parallely(elasticsearch_client, json_iterator, index_name, i)
+        if os.path.isfile(file):
+            os.remove(file)
 
 
 if __name__ == "__main__":
