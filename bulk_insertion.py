@@ -48,7 +48,7 @@ def init():
 
     logger = logging.getLogger('BulkInsertion')
     logger.debug('Started')
-    index_name, doc_type = "bulk__insertion_index", "_doc"
+    index_name, doc_type = "beckett_jstor_ngrams_termvectors", "_doc"
     # dir_path = r"D:\ASU_Part_time\LiteratureAnalysis\TermvectorResultJsonData\\"
     dir_path = r"./Data//"
     extension = "json"
