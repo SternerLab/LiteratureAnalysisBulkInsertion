@@ -91,53 +91,53 @@ def process(elasticsearch_client, index_name, doc_type, data_directory, initial_
             logging.info(
                 "{} Couldn't get records trying again for limit:{} and offset:{}".format(e, limit, offset))
             continue
-            fetched_docs = fetched_docs["hits"]["hits"]
-            processes = []
+        fetched_docs = fetched_docs["hits"]["hits"]
+        processes = []
 
-            shared_doc_dict = manager.dict(result_template)
-            for index, doc in enumerate(fetched_docs):
-                try:
+        shared_doc_dict = manager.dict(result_template)
+        for index, doc in enumerate(fetched_docs):
+            try:
+                terms = elasticsearch_client.termvectors(index=index_name, id=doc["_id"], offsets=False,
+                                                         fields=["plain_text"],
+                                                         positions=False, payloads=False)
+                if "term_vectors" not in terms:
                     terms = elasticsearch_client.termvectors(index=index_name, id=doc["_id"], offsets=False,
                                                              fields=["plain_text"],
                                                              positions=False, payloads=False)
-                    if "term_vectors" not in terms:
-                        terms = elasticsearch_client.termvectors(index=index_name, id=doc["_id"], offsets=False,
-                                                                 fields=["plain_text"],
-                                                                 positions=False, payloads=False)
-                except Exception as e:
-                    logging.info(
-                        "{} Couldn't finish this doc index {} and id {} due to some error".format(e, index, doc["_id"]))
-                    logging.info(
-                        "Skipping this doc index {} and id {} due to connection error".format(e, index, doc["_id"]))
-                    continue
-                processes.append(Process(target=process_doc,
-                                         args=(
-                                             doc, shared_doc_dict, index, terms, doc["_id"])))
-
-                processes[index].start()
-
-            offset += limit
-            for i in range(limit):
-                try:
-                    processes[i].join()
-                except Exception as e:
-                    logging.info(
-                        "{} couldn't find process as it wasn't started due to some error".format(e))
-
-            if len(fetched_docs) < limit:
+            except Exception as e:
                 logging.info(
-                    "This is last batch.")
-                is_done = True
+                    "{} Couldn't finish this doc index {} and id {} due to some error".format(e, index, doc["_id"]))
+                logging.info(
+                    "Skipping this doc index {} and id {} due to connection error".format(e, index, doc["_id"]))
+                continue
+            processes.append(Process(target=process_doc,
+                                     args=(
+                                         doc, shared_doc_dict, index, terms, doc["_id"])))
 
-            count += 1
-            print("batch {} completed".format(count))
-            utils.json_file_writer(os.path.join(data_directory, "result_{}.json".format(count)), "",
-                                   json.dumps(list(shared_doc_dict.values())))
-            print(len(list(shared_doc_dict.values())))
-            logging.info("Batch {} completed and has {} records in it and result saved in file: {}.".format(count, len(
-                list(shared_doc_dict.values())), os.path.join(data_directory, "result_{}.json".format(count))))
-            if count == 10:
-                break
+            processes[index].start()
+
+        offset += limit
+        for i in range(limit):
+            try:
+                processes[i].join()
+            except Exception as e:
+                logging.info(
+                    "{} couldn't find process as it wasn't started due to some error".format(e))
+
+        if len(fetched_docs) < limit:
+            logging.info(
+                "This is last batch.")
+            is_done = True
+
+        count += 1
+        print("batch {} completed".format(count))
+        utils.json_file_writer(os.path.join(data_directory, "result_{}.json".format(count)), "",
+                               json.dumps(list(shared_doc_dict.values())))
+        print(len(list(shared_doc_dict.values())))
+        logging.info("Batch {} completed and has {} records in it and result saved in file: {}.".format(count, len(
+            list(shared_doc_dict.values())), os.path.join(data_directory, "result_{}.json".format(count))))
+        if count == 10:
+            break
 
 
 def init(initial_offset):
