@@ -75,7 +75,7 @@ def process(elasticsearch_client, index_name, doc_type, data_directory, initial_
     is_done = False
     offset = initial_offset
     # TODO: Processing limit number of records each time
-    limit = 200
+    limit = 20
 
     result_template = {}
     for i in range(limit):
@@ -86,6 +86,11 @@ def process(elasticsearch_client, index_name, doc_type, data_directory, initial_
         try:
             fetched_docs = elasticsearch_client.search(index=index_name, doc_type=doc_type, size=limit,
                                                        from_=offset)
+        except Exception as e:
+            print "Connection error"
+            logging.info(
+                "{} Couldn't get records trying again for limit:{} and offset:{}".format(e, limit, offset))
+            continue
             fetched_docs = fetched_docs["hits"]["hits"]
             processes = []
 
@@ -99,13 +104,17 @@ def process(elasticsearch_client, index_name, doc_type, data_directory, initial_
                         terms = elasticsearch_client.termvectors(index=index_name, id=doc["_id"], offsets=False,
                                                                  fields=["plain_text"],
                                                                  positions=False, payloads=False)
-                    processes.append(Process(target=process_doc,
-                                             args=(
-                                                 doc, shared_doc_dict, index, terms, doc["_id"])))
-                    processes[index].start()
                 except Exception as e:
                     logging.info(
-                        "{} Coundnt finish this doc index {} and id {} due to some error".format(e, index, doc["_id"]))
+                        "{} Couldn't finish this doc index {} and id {} due to some error".format(e, index, doc["_id"]))
+                    logging.info(
+                        "Skipping this doc index {} and id {} due to connection error".format(e, index, doc["_id"]))
+                    continue
+                processes.append(Process(target=process_doc,
+                                         args=(
+                                             doc, shared_doc_dict, index, terms, doc["_id"])))
+
+                processes[index].start()
 
             offset += limit
             for i in range(limit):
@@ -127,10 +136,8 @@ def process(elasticsearch_client, index_name, doc_type, data_directory, initial_
             print(len(list(shared_doc_dict.values())))
             logging.info("Batch {} completed and has {} records in it and result saved in file: {}.".format(count, len(
                 list(shared_doc_dict.values())), os.path.join(data_directory, "result_{}.json".format(count))))
-            if count == 5:
+            if count == 10:
                 break
-        except:
-            print "Connection error"
 
 
 def init(initial_offset):
