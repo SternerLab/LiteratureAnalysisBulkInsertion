@@ -170,5 +170,5 @@ if __name__ == "__main__":
     # INDEX_NAME = sys.argv[4]
     # DOC_TYPE = sys.argv[5]
     # data_directory = sys.argv[6]
-    # initial_offset = sys.argv[7]
-    init(int(0))
+    initial_offset = sys.argv[1]
+    init(int(initial_offset))
