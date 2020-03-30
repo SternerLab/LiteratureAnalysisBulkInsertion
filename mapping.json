@@ -76,6 +76,7 @@
         "term_vectors": {
           "properties": {
             "field_statistics": {
+              "properties": {
               "doc_count": {
                 "type": "integer"
               },
@@ -85,21 +86,21 @@
               "sum_doc_freq": {
                 "type": "integer"
               }
-            },
-            "terms": {
-              "properties": {
-                "gram": {
-                  "fields": {
-                    "keyword": {
-                      "ignore_above": 256,
-                      "type": "keyword"
-                    }
-                  },
-                  "type": "text"
+            }
+          },
+          "terms": {
+            "properties": {
+              "gram": {
+                "fields": {
+                  "keyword": {
+                    "ignore_above": 256,
+                    "type": "keyword"
+                  }
                 },
-                "term_count": {
-                  "type": "integer"
-                }
+                "type": "text"
+              },
+              "term_count": {
+                "type": "integer"
               }
             }
           }
@@ -107,4 +108,5 @@
       }
     }
   }
+}
 }

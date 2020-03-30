@@ -1,18 +1,12 @@
-import time
-from collections import defaultdict
-
-import utils
 import json
 import multiprocessing
-import elasticsearch
-from multiprocessing import Manager
-from termvector_extraction import TermvectorExtraction
-import elasticsearch_connection
-import elasticsearch
-from elasticsearch_dsl import Search
-from multiprocessing import Process, Manager
-
+import os
 import sys
+import time
+from multiprocessing import Process, Manager
+import logging
+import elasticsearch_connection
+import utils
 
 sys.setrecursionlimit(10000)
 
@@ -43,15 +37,14 @@ def term_process(term_list, t_counter, term, term_dict):
 
 
 # TODO: Process term vector using multiprocessing
-def term_vector_processing(term_vector):
-    if "term_vectors" in term_vector:
+def term_vector_processing(term_vector, doc_id, index):
+    try:
         cpu_count = get_cpu_count()
         pool = multiprocessing.Pool(cpu_count)
         term_list = Manager().list()
         terms = term_vector["term_vectors"]["plain_text"]["terms"]
         term_counter = 0
         for term in terms:
-
             pool.apply_async(term_process, args=(term_list, term_counter, term, terms[term]))
             term_counter += 1
 
@@ -60,11 +53,12 @@ def term_vector_processing(term_vector):
         return_term_vector = {"field_statistics": term_vector["term_vectors"]["plain_text"]["field_statistics"],
                               "terms": list(term_list)}
         return return_term_vector
-    return {}
+    except KeyError as e:
+        logging.error("{}:  for doc_id :{} and index: {}".format(e, doc_id, index))
+        return {}
 
 
-
-def process_doc(document, shared_doc_dict, index, terms):
+def process_doc(document, shared_doc_dict, index, terms, doc_id):
     temp_dict = shared_doc_dict[index]
 
     temp_dict["year"] = document["_source"]["article"]["article-meta"]["year"]
@@ -72,61 +66,104 @@ def process_doc(document, shared_doc_dict, index, terms):
     temp_dict["article-id"] = document["_source"]["article"]["article-meta"]["article-id"]
     temp_dict["journal-id"] = document["_source"]["article"]["journal-meta"]["journal-id"]
     temp_dict["journal-title"] = document["_source"]["article"]["journal-meta"]["journal-title"]
-    temp_dict["term_vectors"] = term_vector_processing(terms)
+    temp_dict["term_vectors"] = term_vector_processing(terms, doc_id, index)
     shared_doc_dict[index] = temp_dict
 
 
-
-
-def process(elasticsearch_client):
+def process(elasticsearch_client, index_name, doc_type, data_directory, initial_offset):
     manager = Manager()
     is_done = False
-    offset = 0
+    offset = initial_offset
     # TODO: Processing limit number of records each time
-    limit = 10
+    limit = 200
 
-    result_teamplate = {}
+    result_template = {}
     for i in range(limit):
-        result_teamplate[i] = {}
+        result_template[i] = {}
 
-    count = 0
+    count = initial_offset
     while not is_done:
-        fetched_docs = elasticsearch_client.search(index="beckett_jstor_ngrams_part", doc_type='article', size=limit,
-                                                   from_=offset)
-        fetched_docs = fetched_docs["hits"]["hits"]
-        process = []
+        try:
+            fetched_docs = elasticsearch_client.search(index=index_name, doc_type=doc_type, size=limit,
+                                                       from_=offset)
+            fetched_docs = fetched_docs["hits"]["hits"]
+            processes = []
 
-        shared_doc_dict = manager.dict(result_teamplate)
-        for index, doc in enumerate(fetched_docs):
-            terms = elasticsearch_client.termvectors(index="beckett_jstor_ngrams_part", id=doc["_id"], offsets=False,
-                                                     fields=["plain_text"],
-                                                     positions=False, payloads=False)
-            process.append(Process(target=process_doc,
-                                   args=(
-                                       doc, shared_doc_dict, index, terms)))
-            print("process {} started".format(index))
-            process[index].start()
+            shared_doc_dict = manager.dict(result_template)
+            for index, doc in enumerate(fetched_docs):
+                try:
+                    terms = elasticsearch_client.termvectors(index=index_name, id=doc["_id"], offsets=False,
+                                                             fields=["plain_text"],
+                                                             positions=False, payloads=False)
+                    if "term_vectors" not in terms:
+                        terms = elasticsearch_client.termvectors(index=index_name, id=doc["_id"], offsets=False,
+                                                                 fields=["plain_text"],
+                                                                 positions=False, payloads=False)
+                    processes.append(Process(target=process_doc,
+                                             args=(
+                                                 doc, shared_doc_dict, index, terms, doc["_id"])))
+                    processes[index].start()
+                except Exception as e:
+                    logging.info(
+                        "{} Coundnt finish this doc index {} and id {} due to some error".format(e, index, doc["_id"]))
 
-        offset += limit
-        for i in range(limit):
-            process[i].join()
-        if len(fetched_docs) < limit:
-            is_done = True
-        if count == 5:
-            break
-        count += 1
-        utils.json_file_writer("./Data/", "result_{}.json".format(count), json.dumps(list(shared_doc_dict.values())))
-        print(len(list(shared_doc_dict.values())))
+            offset += limit
+            for i in range(limit):
+                try:
+                    processes[i].join()
+                except Exception as e:
+                    logging.info(
+                        "{} couldn't find process as it wasn't started due to some error".format(e))
+
+            if len(fetched_docs) < limit:
+                logging.info(
+                    "This is last batch.")
+                is_done = True
+
+            count += 1
+            print("batch {} completed".format(count))
+            utils.json_file_writer(os.path.join(data_directory, "result_{}.json".format(count)), "",
+                                   json.dumps(list(shared_doc_dict.values())))
+            print(len(list(shared_doc_dict.values())))
+            logging.info("Batch {} completed and has {} records in it and result saved in file: {}.".format(count, len(
+                list(shared_doc_dict.values())), os.path.join(data_directory, "result_{}.json".format(count))))
+            if count == 5:
+                break
+        except:
+            print "Connection error"
 
 
+def init(initial_offset):
+    start_time = time.time()
+    logging.basicConfig(format='%(asctime)s %(message)s',
+                        datefmt='%m/%d/%Y %I:%M:%S %p',
+                        filename='./Logs/data_preparation.log',
+                        level=logging.ERROR)
 
-if __name__ == "__main__":
+    logger = logging.getLogger('LiteratureAnalysis')
+    logger.debug('Started')
     ES_AUTH_USER = 'ketan'
     ES_AUTH_PASSWORD = 'hk7PDr0I4toBA%e'
     ES_HOST = 'http://diging-elastic.asu.edu/elastic'
+    INDEX_NAME = "beckett_jstor_ngrams_part"
+    DOC_TYPE = "article"
+    data_directory = r"D:\ASU_Part_time\LiteratureAnalysis\TermvectorResultJsonData\\"
     db_connection = elasticsearch_connection.ElasticsearchConnection(ES_HOST, ES_AUTH_USER, ES_AUTH_PASSWORD)
 
     elasticsearch_client = db_connection.get_elasticsearch_client()
-    INDEX_NAME = "beckett_jstor"
-    DOC_TYPE = "article"
-    process(elasticsearch_client)
+
+    process(elasticsearch_client, INDEX_NAME, DOC_TYPE, data_directory, initial_offset)
+    print "Time Taken===>", time.time() - start_time
+    logger.debug("Time Taken===> {}".format(time.time() - start_time))
+    logger.debug('Finished')
+
+
+if __name__ == "__main__":
+    ES_AUTH_USER = sys.argv[1]
+    ES_AUTH_PASSWORD = sys.argv[2]
+    ES_HOST = sys.argv[3]
+    INDEX_NAME = sys.argv[4]
+    DOC_TYPE = sys.argv[5]
+    data_directory = sys.argv[6]
+    initial_offset = sys.argv[7]
+    init(initial_offset)
