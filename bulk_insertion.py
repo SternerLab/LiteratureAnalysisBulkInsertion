@@ -53,9 +53,12 @@ def init():
     extension = "json"
     files_to_proceed = utils.get_all_files(dir_path, extension)
     print(files_to_proceed)
-    ES_AUTH_USER = ''
-    ES_AUTH_PASSWORD = ''
-    ES_HOST = 'localhost:9200'
+    ES_AUTH_USER = 'ketan'
+    ES_AUTH_PASSWORD = 'hk7PDr0I4toBA%e'
+    ES_HOST = 'http://diging-elastic.asu.edu/elastic'
+    # ES_AUTH_USER = ''
+    # ES_AUTH_PASSWORD = ''
+    # ES_HOST = 'localhost:9200'
     db_connection = ElasticsearchConnection(ES_HOST, ES_AUTH_USER, ES_AUTH_PASSWORD)
     elasticsearch_client = db_connection.get_elasticsearch_client()
 
