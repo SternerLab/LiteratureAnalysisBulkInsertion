@@ -1,6 +1,4 @@
 import elasticsearch
-import pprint
-from elasticsearch_dsl import Search
 
 
 class ElasticsearchConnection:
@@ -15,6 +13,7 @@ class ElasticsearchConnection:
             elasticsearch_client = elasticsearch.Elasticsearch([self.es_host], http_auth=self.es_auth_user
                                                                                          + ":" + self.es_auth_password,
                                                                connection_class=elasticsearch.RequestsHttpConnection)
+
             return elasticsearch_client
         except Exception as ex:
             print("Error:", ex)
@@ -29,4 +28,3 @@ if __name__ == "__main__":
     DOC_TYPE = "_doc"
     # Getting Mapping of the index
     res = elasticsearch_client.indices.get_mapping(INDEX_NAME)
-

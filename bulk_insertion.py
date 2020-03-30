@@ -16,7 +16,8 @@ def create_new_index(mapping_json, es_index_name, elasticsearch_client):
     elasticsearch_client.indices.create(index=es_index_name, body=mappings)
 
 
-def insert_bulk_data_parallely(elasticsearch_client, iterator, index_name, i, thread_count=multiprocessing.cpu_count() - 2,
+def insert_bulk_data_parallely(elasticsearch_client, iterator, index_name, i,
+                               thread_count=multiprocessing.cpu_count() - 2,
                                chunk_size=500,
                                max_chunk_bytes=104857600, queue_size=4):
     for success, info in elasticsearch.helpers.parallel_bulk(elasticsearch_client, iterator, thread_count, chunk_size,
@@ -27,7 +28,6 @@ def insert_bulk_data_parallely(elasticsearch_client, iterator, index_name, i, th
             print('Doc failed', info)
         else:
             logging.info("Batch {} inserted into index".format(i))
-
 
 
 def insert_bulk_data(elasticsearch_client, iterator, index_name):
@@ -47,7 +47,9 @@ def init():
 
     logger = logging.getLogger('BulkInsertion')
     logger.debug('Started')
-    dir_path = r"D:\ASU_Part_time\LiteratureAnalysis\TermvectorResultJsonData\\"
+    index_name, doc_type = "bulk__insertion_index", "_doc"
+    # dir_path = r"D:\ASU_Part_time\LiteratureAnalysis\TermvectorResultJsonData\\"
+    dir_path = r"./Data//"
     extension = "json"
     files_to_proceed = utils.get_all_files(dir_path, extension)
     print(files_to_proceed)
@@ -56,8 +58,9 @@ def init():
     ES_HOST = 'localhost:9200'
     db_connection = ElasticsearchConnection(ES_HOST, ES_AUTH_USER, ES_AUTH_PASSWORD)
     elasticsearch_client = db_connection.get_elasticsearch_client()
-    create_new_index("./mapping.json", "bulk_insertion_index", elasticsearch_client)
-    index_name, doc_type = "bulk_insertion_index", "_doc"
+
+    create_new_index("./mapping.json", index_name, elasticsearch_client)
+
     for i, file in enumerate(files_to_proceed):
         json_iterator = JsonIterator("", file, index_name, doc_type)
         insert_bulk_data_parallely(elasticsearch_client, json_iterator, index_name, i)

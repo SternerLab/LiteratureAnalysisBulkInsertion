@@ -1,10 +1,12 @@
+#!/usr/bin/env python2
 import json
+import logging
 import multiprocessing
 import os
 import sys
 import time
 from multiprocessing import Process, Manager
-import logging
+
 import elasticsearch_connection
 import utils
 
@@ -26,27 +28,21 @@ def get_cpu_count():
     return cpu_count
 
 
-def term_process(term_list, t_counter, term, term_dict):
-    # print("Process number:- {0} started".format(t_counter))
+def term_process(term_list, term, term_dict):
     gram = len(term.split(" "))
     term_count = term_dict["term_freq"]
-    return_dict = {"term": term, "term_count": term_count, "gram": gram}
+    return_dict = {"term": term.strip(), "term_count": term_count, "gram": gram}
     term_list.append(return_dict)
-    # if t_counter % 100 == 0:
-    #     print("Process number:- {0} Completed".format(t_counter))
 
 
-# TODO: Process term vector using multiprocessing
 def term_vector_processing(term_vector, doc_id, index):
     try:
         cpu_count = get_cpu_count()
         pool = multiprocessing.Pool(cpu_count)
         term_list = Manager().list()
         terms = term_vector["term_vectors"]["plain_text"]["terms"]
-        term_counter = 0
         for term in terms:
-            pool.apply_async(term_process, args=(term_list, term_counter, term, terms[term]))
-            term_counter += 1
+            pool.apply_async(term_process, args=(term_list, term, terms[term]))
 
         pool.close()
         pool.join()
@@ -75,7 +71,7 @@ def process(elasticsearch_client, index_name, doc_type, data_directory, initial_
     is_done = False
     offset = initial_offset
     # TODO: Processing limit number of records each time
-    limit = 20
+    limit = 200
 
     result_template = {}
     for i in range(limit):
@@ -87,13 +83,12 @@ def process(elasticsearch_client, index_name, doc_type, data_directory, initial_
             fetched_docs = elasticsearch_client.search(index=index_name, doc_type=doc_type, size=limit,
                                                        from_=offset)
         except Exception as e:
-            print "Connection error"
             logging.info(
                 "{} Couldn't get records trying again for limit:{} and offset:{}".format(e, limit, offset))
             continue
         fetched_docs = fetched_docs["hits"]["hits"]
         processes = []
-
+        print count
         shared_doc_dict = manager.dict(result_template)
         for index, doc in enumerate(fetched_docs):
             try:
@@ -133,11 +128,13 @@ def process(elasticsearch_client, index_name, doc_type, data_directory, initial_
         print("batch {} completed".format(count))
         utils.json_file_writer(os.path.join(data_directory, "result_{}.json".format(count)), "",
                                json.dumps(list(shared_doc_dict.values())))
-        print(len(list(shared_doc_dict.values())))
-        logging.info("Batch {} completed and has {} records in it and result saved in file: {}.".format(count, len(
-            list(shared_doc_dict.values())), os.path.join(data_directory, "result_{}.json".format(count))))
-        if count == 10:
-            break
+        logging.info(
+            "Batch {} completed and has {} records in it and result saved in file: {}. It contains {} records".format(
+                count, len(
+                    list(shared_doc_dict.values())), os.path.join(data_directory, "result_{}.json".format(count)),
+                len(list(shared_doc_dict.values()))))
+        # if count == 2:
+        #     is_done = True
 
 
 def init(initial_offset):
@@ -145,32 +142,33 @@ def init(initial_offset):
     logging.basicConfig(format='%(asctime)s %(message)s',
                         datefmt='%m/%d/%Y %I:%M:%S %p',
                         filename='./Logs/data_preparation.log',
-                        level=logging.ERROR)
+                        level=logging.INFO)
 
     logger = logging.getLogger('LiteratureAnalysis')
-    logger.debug('Started')
+    logger.info('Started')
     ES_AUTH_USER = 'ketan'
     ES_AUTH_PASSWORD = 'hk7PDr0I4toBA%e'
     ES_HOST = 'http://diging-elastic.asu.edu/elastic'
     INDEX_NAME = "beckett_jstor_ngrams_part"
     DOC_TYPE = "article"
-    data_directory = r"D:\ASU_Part_time\LiteratureAnalysis\TermvectorResultJsonData\\"
+    # data_directory = r"D:\ASU_Part_time\LiteratureAnalysis\TermvectorResultJsonData\\"
+    data_directory = r"Data\\"
     db_connection = elasticsearch_connection.ElasticsearchConnection(ES_HOST, ES_AUTH_USER, ES_AUTH_PASSWORD)
 
     elasticsearch_client = db_connection.get_elasticsearch_client()
 
     process(elasticsearch_client, INDEX_NAME, DOC_TYPE, data_directory, initial_offset)
     print "Time Taken===>", time.time() - start_time
-    logger.debug("Time Taken===> {}".format(time.time() - start_time))
-    logger.debug('Finished')
+    logger.info("Time Taken===> {}".format(time.time() - start_time))
+    logger.info('Finished')
 
 
 if __name__ == "__main__":
-    ES_AUTH_USER = sys.argv[1]
-    ES_AUTH_PASSWORD = sys.argv[2]
-    ES_HOST = sys.argv[3]
-    INDEX_NAME = sys.argv[4]
-    DOC_TYPE = sys.argv[5]
-    data_directory = sys.argv[6]
-    initial_offset = sys.argv[7]
-    init(initial_offset)
+    # ES_AUTH_USER = sys.argv[1]
+    # ES_AUTH_PASSWORD = sys.argv[2]
+    # ES_HOST = sys.argv[3]
+    # INDEX_NAME = sys.argv[4]
+    # DOC_TYPE = sys.argv[5]
+    # data_directory = sys.argv[6]
+    # initial_offset = sys.argv[7]
+    init(int(0))
