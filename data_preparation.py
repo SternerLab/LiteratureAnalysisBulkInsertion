@@ -13,6 +13,10 @@ import utils
 sys.setrecursionlimit(10000)
 
 
+INDEX_NAME = "beckett_jstor_ngrams_part"
+DOC_TYPE = "article"
+
+
 def get_cpu_count():
     cpu_count = multiprocessing.cpu_count()
     if cpu_count >= 30:
@@ -66,7 +70,7 @@ def process_doc(document, shared_doc_dict, index, terms, doc_id):
     shared_doc_dict[index] = temp_dict
 
 
-def process(elasticsearch_client, index_name, doc_type, data_directory, initial_offset):
+def process(elasticsearch_client, data_directory, initial_offset):
     manager = Manager()
     is_done = False
     offset = initial_offset
@@ -77,12 +81,20 @@ def process(elasticsearch_client, index_name, doc_type, data_directory, initial_
     for i in range(limit):
         result_template[i] = {}
 
+    fetched_count = 0
     count = initial_offset
     while not is_done:
         try:
-            fetched_docs = elasticsearch_client.search(index=index_name, doc_type=doc_type, size=limit,
+            fetched_count += 1
+            fetched_docs = elasticsearch_client.search(index=INDEX_NAME, doc_type=DOC_TYPE, size=limit,
                                                        from_=offset)
+            fetched_count = 0
         except Exception as e:
+            if fetched_count == 3:
+                logging.info(
+                    "Terminating script as connection is timeout more than 3 times.")
+                print "Terminating script as connection is timeout more than 3 times."
+                break
             logging.info(
                 "{} Couldn't get records trying again for limit:{} and offset:{}".format(e, limit, offset))
             continue
@@ -92,11 +104,11 @@ def process(elasticsearch_client, index_name, doc_type, data_directory, initial_
         shared_doc_dict = manager.dict(result_template)
         for index, doc in enumerate(fetched_docs):
             try:
-                terms = elasticsearch_client.termvectors(index=index_name, id=doc["_id"], offsets=False,
+                terms = elasticsearch_client.termvectors(index=INDEX_NAME, id=doc["_id"], offsets=False,
                                                          fields=["plain_text"],
                                                          positions=False, payloads=False)
                 if "term_vectors" not in terms:
-                    terms = elasticsearch_client.termvectors(index=index_name, id=doc["_id"], offsets=False,
+                    terms = elasticsearch_client.termvectors(index=INDEX_NAME, id=doc["_id"], offsets=False,
                                                              fields=["plain_text"],
                                                              positions=False, payloads=False)
             except Exception as e:
@@ -112,7 +124,7 @@ def process(elasticsearch_client, index_name, doc_type, data_directory, initial_
             processes[index].start()
 
         offset += limit
-        for i in range(limit):
+        for i in range(len(fetched_docs)):
             try:
                 processes[i].join()
             except Exception as e:
@@ -137,7 +149,7 @@ def process(elasticsearch_client, index_name, doc_type, data_directory, initial_
         #     is_done = True
 
 
-def init(initial_offset):
+def init(ES_AUTH_USER, ES_AUTH_PASSWORD, ES_HOST, data_directory, initial_offset):
     start_time = time.time()
     logging.basicConfig(format='%(asctime)s %(message)s',
                         datefmt='%m/%d/%Y %I:%M:%S %p',
@@ -146,29 +158,18 @@ def init(initial_offset):
 
     logger = logging.getLogger('LiteratureAnalysis')
     logger.info('Started')
-    ES_AUTH_USER = 'ketan'
-    ES_AUTH_PASSWORD = 'hk7PDr0I4toBA%e'
-    ES_HOST = 'http://diging-elastic.asu.edu/elastic'
-    INDEX_NAME = "beckett_jstor_ngrams_part"
-    DOC_TYPE = "article"
-    # data_directory = r"D:\ASU_Part_time\LiteratureAnalysis\TermvectorResultJsonData\\"
-    data_directory = r"Data\\"
     db_connection = elasticsearch_connection.ElasticsearchConnection(ES_HOST, ES_AUTH_USER, ES_AUTH_PASSWORD)
-
     elasticsearch_client = db_connection.get_elasticsearch_client()
-
-    process(elasticsearch_client, INDEX_NAME, DOC_TYPE, data_directory, initial_offset)
+    process(elasticsearch_client, data_directory, initial_offset)
     print "Time Taken===>", time.time() - start_time
     logger.info("Time Taken===> {}".format(time.time() - start_time))
     logger.info('Finished')
 
 
 if __name__ == "__main__":
-    # ES_AUTH_USER = sys.argv[1]
-    # ES_AUTH_PASSWORD = sys.argv[2]
-    # ES_HOST = sys.argv[3]
-    # INDEX_NAME = sys.argv[4]
-    # DOC_TYPE = sys.argv[5]
-    # data_directory = sys.argv[6]
-    initial_offset = sys.argv[1]
-    init(int(initial_offset))
+    ES_AUTH_USER = sys.argv[1]
+    ES_AUTH_PASSWORD = sys.argv[2]
+    ES_HOST = sys.argv[3]
+    data_directory = sys.argv[4]
+    initial_offset = sys.argv[5]
+    init(ES_AUTH_USER, ES_AUTH_PASSWORD, ES_HOST, data_directory, int(initial_offset))

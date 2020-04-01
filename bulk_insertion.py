@@ -1,5 +1,6 @@
 import logging
 import os
+import sys
 import time
 
 from elasticsearch_connection import ElasticsearchConnection
@@ -18,7 +19,7 @@ def create_new_index(mapping_json, es_index_name, elasticsearch_client):
 
 
 def insert_bulk_data_parallely(elasticsearch_client, iterator, index_name, i,
-                               thread_count=multiprocessing.cpu_count() - 2,
+                               thread_count=multiprocessing.cpu_count(),
                                chunk_size=500,
                                max_chunk_bytes=104857600, queue_size=4):
     for success, info in elasticsearch.helpers.parallel_bulk(elasticsearch_client, iterator, thread_count, chunk_size,
@@ -40,7 +41,7 @@ def insert_bulk_data(elasticsearch_client, iterator, index_name):
             logging.debug()
 
 
-def init():
+def init(ES_AUTH_USER, ES_AUTH_PASSWORD, ES_HOST, dir_path, index_name, doc_type):
     logging.basicConfig(format='%(asctime)s %(message)s',
                         datefmt='%m/%d/%Y %I:%M:%S %p',
                         filename='./Logs/batch_insertion.log',
@@ -48,18 +49,10 @@ def init():
 
     logger = logging.getLogger('BulkInsertion')
     logger.debug('Started')
-    index_name, doc_type = "beckett_jstor_ngrams_termvectors", "_doc"
-    # dir_path = r"D:\ASU_Part_time\LiteratureAnalysis\TermvectorResultJsonData\\"
-    dir_path = r"./Data//"
     extension = "json"
     files_to_proceed = utils.get_all_files(dir_path, extension)
     print(files_to_proceed)
-    ES_AUTH_USER = 'ketan'
-    ES_AUTH_PASSWORD = 'hk7PDr0I4toBA%e'
-    ES_HOST = 'http://diging-elastic.asu.edu/elastic'
-    # ES_AUTH_USER = ''
-    # ES_AUTH_PASSWORD = ''
-    # ES_HOST = 'localhost:9200'
+
     db_connection = ElasticsearchConnection(ES_HOST, ES_AUTH_USER, ES_AUTH_PASSWORD)
     elasticsearch_client = db_connection.get_elasticsearch_client()
 
@@ -73,6 +66,12 @@ def init():
 
 
 if __name__ == "__main__":
+    ES_AUTH_USER = sys.argv[1]
+    ES_AUTH_PASSWORD = sys.argv[2]
+    ES_HOST = sys.argv[3]
+    dir_path = sys.argv[4]
+    index_name = sys.argv[5]
+    doc_type = sys.argv[6]
     start_time = time.time()
-    init()
+    init(ES_AUTH_USER, ES_AUTH_PASSWORD, ES_HOST, dir_path, index_name, doc_type)
     print "Time Taken===>", time.time() - start_time
