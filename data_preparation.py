@@ -12,7 +12,6 @@ import utils
 
 sys.setrecursionlimit(10000)
 
-
 INDEX_NAME = "beckett_jstor_ngrams_part"
 DOC_TYPE = "article"
 
@@ -75,7 +74,7 @@ def process(elasticsearch_client, data_directory, initial_offset):
     is_done = False
     offset = initial_offset
     # TODO: Processing limit number of records each time
-    limit = 200
+    limit = 25
 
     result_template = {}
     for i in range(limit):
@@ -90,6 +89,7 @@ def process(elasticsearch_client, data_directory, initial_offset):
                                                        from_=offset)
             fetched_count = 0
         except Exception as e:
+            time.sleep(2)
             if fetched_count == 3:
                 logging.info(
                     "Terminating script as connection is timeout more than 3 times.")
@@ -99,27 +99,20 @@ def process(elasticsearch_client, data_directory, initial_offset):
                 "{} Couldn't get records trying again for limit:{} and offset:{}".format(e, limit, offset))
             continue
         fetched_docs = fetched_docs["hits"]["hits"]
+        fetched_ids = [doc["_id"] for _, doc in enumerate(fetched_docs)]
+        time.sleep(1)
+        mTerms = elasticsearch_client.mtermvectors(index=INDEX_NAME, doc_type=DOC_TYPE, ids=fetched_ids, offsets=False,
+                                                   fields=["plain_text"],
+                                                   positions=False, payloads=False, term_statistics=True,
+                                                   field_statistics=True)
+
         processes = []
         print count
         shared_doc_dict = manager.dict(result_template)
         for index, doc in enumerate(fetched_docs):
-            try:
-                terms = elasticsearch_client.termvectors(index=INDEX_NAME, id=doc["_id"], offsets=False,
-                                                         fields=["plain_text"],
-                                                         positions=False, payloads=False)
-                if "term_vectors" not in terms:
-                    terms = elasticsearch_client.termvectors(index=INDEX_NAME, id=doc["_id"], offsets=False,
-                                                             fields=["plain_text"],
-                                                             positions=False, payloads=False)
-            except Exception as e:
-                logging.info(
-                    "{} Couldn't finish this doc index {} and id {} due to some error".format(e, index, doc["_id"]))
-                logging.info(
-                    "Skipping this doc index {} and id {} due to connection error".format(e, index, doc["_id"]))
-                continue
             processes.append(Process(target=process_doc,
                                      args=(
-                                         doc, shared_doc_dict, index, terms, doc["_id"])))
+                                         doc, shared_doc_dict, index, mTerms["docs"][index], doc["_id"])))
 
             processes[index].start()
 

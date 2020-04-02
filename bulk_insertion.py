@@ -20,8 +20,8 @@ def create_new_index(mapping_json, es_index_name, elasticsearch_client):
 
 def insert_bulk_data_parallely(elasticsearch_client, iterator, index_name, i,
                                thread_count=multiprocessing.cpu_count(),
-                               chunk_size=500,
-                               max_chunk_bytes=104857600, queue_size=4):
+                               chunk_size=5000,
+                               max_chunk_bytes=500 * 1024 * 1024, queue_size=20):
     for success, info in elasticsearch.helpers.parallel_bulk(elasticsearch_client, iterator, thread_count, chunk_size,
                                                              max_chunk_bytes,
                                                              queue_size, index=index_name, raise_on_error=True):
