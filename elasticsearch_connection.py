@@ -14,7 +14,8 @@ class ElasticsearchConnection:
         try:
             elasticsearch_client = elasticsearch.Elasticsearch([self.es_host], http_auth=self.es_auth_user
                                                                                          + ":" + self.es_auth_password,
-                                                               connection_class=elasticsearch.RequestsHttpConnection)
+                                                               connection_class=elasticsearch.RequestsHttpConnection,
+                                                               timeout=20)
 
             return elasticsearch_client
         except Exception as ex:

@@ -81,10 +81,12 @@ def process(elasticsearch_client, data_directory, initial_offset):
         result_template[i] = {}
 
     fetched_count = 0
-    count = initial_offset
+    count = initial_offset // limit
     while not is_done:
         try:
+            batch_start_time = time.time()
             fetched_count += 1
+            print "starting offset of this batch is: {}".format(offset)
             fetched_docs = elasticsearch_client.search(index=INDEX_NAME, doc_type=DOC_TYPE, size=limit,
                                                        from_=offset)
             fetched_count = 0
@@ -130,7 +132,7 @@ def process(elasticsearch_client, data_directory, initial_offset):
             is_done = True
 
         count += 1
-        print("batch {} completed".format(count))
+
         utils.json_file_writer(os.path.join(data_directory, "result_{}.json".format(count)), "",
                                json.dumps(list(shared_doc_dict.values())))
         logging.info(
@@ -140,6 +142,7 @@ def process(elasticsearch_client, data_directory, initial_offset):
                 len(list(shared_doc_dict.values()))))
         # if count == 2:
         #     is_done = True
+        print("batch {} completed in {}".format(count, time.time() - batch_start_time))
 
 
 def init(ES_AUTH_USER, ES_AUTH_PASSWORD, ES_HOST, data_directory, initial_offset):
@@ -165,4 +168,5 @@ if __name__ == "__main__":
     ES_HOST = sys.argv[3]
     data_directory = sys.argv[4]
     initial_offset = sys.argv[5]
-    init(ES_AUTH_USER, ES_AUTH_PASSWORD, ES_HOST, data_directory, int(initial_offset))
+    init(ES_AUTH_USER, ES_AUTH_PASSWORD, ES_HOST,  r"D:\ASU_Part_time\LiteratureAnalysis\TermvectorResultJsonData\\",
+         int(initial_offset))
