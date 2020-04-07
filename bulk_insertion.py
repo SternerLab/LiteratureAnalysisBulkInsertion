@@ -14,8 +14,7 @@ from json_iterator import JsonIterator
 
 def create_new_index(mapping_json, es_index_name, elasticsearch_client):
     with open(mapping_json, 'r') as fh:
-        print(json.load(fh).values())
-        mappings = json.load(fh).values()[0]
+        mappings = json.load(fh)["ketan_beckett_jstor_ngrams_term_vectors"]
     elasticsearch_client.indices.create(index=es_index_name, body=mappings)
 
 
