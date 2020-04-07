@@ -12,8 +12,11 @@ def print_id(elasticsearch_client):
                                          size=25,
                                          request_timeout=None, clear_scroll=True)
     output = []
-    for item in results:
-        output.append(item['_id'])
+    for i in range(12312//25):
+        temp = []
+        for j in range(25):
+            temp.append(results.next()['_id'])
+        output.append(temp)
 
     print "Completed"
     utils.json_file_writer("Data", "ids.json", output)

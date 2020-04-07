@@ -1,14 +1,14 @@
+import json
 import logging
-import os
+import multiprocessing
 import sys
 import time
 
-from elasticsearch_connection import ElasticsearchConnection
 import elasticsearch
 import elasticsearch.helpers
-import json
-import multiprocessing
+
 import utils
+from elasticsearch_connection import ElasticsearchConnection
 from json_iterator import JsonIterator
 
 
@@ -18,7 +18,7 @@ def create_new_index(mapping_json, es_index_name, elasticsearch_client):
     elasticsearch_client.indices.create(index=es_index_name, body=mappings)
 
 
-def insert_bulk_data_parallely(elasticsearch_client, iterator, index_name, i,
+def insert_bulk_data_parallely(elasticsearch_client, iterator, index_name, file_number,
                                thread_count=multiprocessing.cpu_count(),
                                chunk_size=5000,
                                max_chunk_bytes=500 * 1024 * 1024, queue_size=20):
@@ -28,8 +28,10 @@ def insert_bulk_data_parallely(elasticsearch_client, iterator, index_name, i,
 
         if not success:
             print('Doc failed', info)
+            logging.info("Batch {} insertion failed".format(file_number))
         else:
-            logging.info("Batch {} inserted into index".format(i))
+            print "Batch {} inserted into index".format(file_number)
+            logging.info("Batch {} inserted into index".format(file_number))
 
 
 def insert_bulk_data(elasticsearch_client, iterator, index_name):
@@ -51,7 +53,7 @@ def init(ES_AUTH_USER, ES_AUTH_PASSWORD, ES_HOST, dir_path, index_name, doc_type
     logger.debug('Started')
     extension = "json"
     files_to_proceed = utils.get_all_files(dir_path, extension)
-    print(files_to_proceed)
+    print "Inserting {} number of files in index: {}".format(len(files_to_proceed), index_name)
 
     db_connection = ElasticsearchConnection(ES_HOST, ES_AUTH_USER, ES_AUTH_PASSWORD)
     elasticsearch_client = db_connection.get_elasticsearch_client()
@@ -61,8 +63,6 @@ def init(ES_AUTH_USER, ES_AUTH_PASSWORD, ES_HOST, dir_path, index_name, doc_type
     for i, file in enumerate(files_to_proceed):
         json_iterator = JsonIterator("", file, index_name, doc_type)
         insert_bulk_data_parallely(elasticsearch_client, json_iterator, index_name, i)
-        if os.path.isfile(file):
-            os.remove(file)
 
 
 if __name__ == "__main__":
@@ -74,4 +74,4 @@ if __name__ == "__main__":
     doc_type = sys.argv[6]
     start_time = time.time()
     init(ES_AUTH_USER, ES_AUTH_PASSWORD, ES_HOST, dir_path, index_name, doc_type)
-    print "Time Taken===>", time.time() - start_time
+    print("Time Taken===>", time.time() - start_time)

@@ -1,5 +1,5 @@
 {
-  "beckett_jstor_ngrams_term_vectors": {
+  "ketan_beckett_jstor_ngrams_term_vectors": {
     "mappings": {
       "properties": {
         "article-id": {
