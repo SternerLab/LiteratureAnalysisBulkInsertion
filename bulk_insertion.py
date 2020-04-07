@@ -30,7 +30,7 @@ def insert_bulk_data_parallely(elasticsearch_client, iterator, index_name, file_
             print('Doc failed', info)
             logging.info("Batch {} insertion failed".format(file_number))
         else:
-            print "Batch {} inserted into index".format(file_number)
+            print("Batch {} inserted into index".format(file_number))
             logging.info("Batch {} inserted into index".format(file_number))
 
 
@@ -53,7 +53,7 @@ def init(ES_AUTH_USER, ES_AUTH_PASSWORD, ES_HOST, dir_path, index_name, doc_type
     logger.debug('Started')
     extension = "json"
     files_to_proceed = utils.get_all_files(dir_path, extension)
-    print "Inserting {} number of files in index: {}".format(len(files_to_proceed), index_name)
+    print("Inserting {} number of files in index: {}".format(len(files_to_proceed), index_name))
 
     db_connection = ElasticsearchConnection(ES_HOST, ES_AUTH_USER, ES_AUTH_PASSWORD)
     elasticsearch_client = db_connection.get_elasticsearch_client()
