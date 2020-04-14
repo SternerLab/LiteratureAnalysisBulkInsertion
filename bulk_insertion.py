@@ -53,6 +53,7 @@ def init(ES_AUTH_USER, ES_AUTH_PASSWORD, ES_HOST, dir_path, index_name, doc_type
     logger.debug('Started')
     extension = "json"
     files_to_proceed = utils.get_all_files(dir_path, extension)
+
     print("Inserting {} number of files in index: {}".format(len(files_to_proceed), index_name))
 
     db_connection = ElasticsearchConnection(ES_HOST, ES_AUTH_USER, ES_AUTH_PASSWORD)
@@ -61,8 +62,15 @@ def init(ES_AUTH_USER, ES_AUTH_PASSWORD, ES_HOST, dir_path, index_name, doc_type
     create_new_index("./mapping.json", index_name, elasticsearch_client)
 
     for i, file in enumerate(files_to_proceed):
-        json_iterator = JsonIterator("", file, index_name, doc_type)
-        insert_bulk_data_parallely(elasticsearch_client, json_iterator, index_name, i)
+        try:
+            json_iterator = JsonIterator("", file, index_name, doc_type)
+            insert_bulk_data_parallely(elasticsearch_client, json_iterator, index_name, i+36)
+        except Exception as e:
+            logging.info(
+                "{} and due to this couldn't insert records from file: {}".format(e, file))
+            print "Failed to insert records from file: {}".format(e, file)
+        if i == 1:
+            break
 
 
 if __name__ == "__main__":

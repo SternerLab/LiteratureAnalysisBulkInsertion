@@ -77,30 +77,29 @@
           "properties": {
             "field_statistics": {
               "properties": {
-              "doc_count": {
-                "type": "integer"
-              },
-              "sum_ttf": {
-                "type": "integer"
-              },
-              "sum_doc_freq": {
-                "type": "integer"
-              }
-            }
-          },
-          "terms": {
-            "properties": {
-              "gram": {
-                "fields": {
-                  "keyword": {
-                    "ignore_above": 256,
-                    "type": "keyword"
-                  }
+                "doc_count": {
+                  "type": "integer"
                 },
-                "type": "text"
-              },
-              "term_count": {
-                "type": "integer"
+                "sum_ttf": {
+                  "type": "integer"
+                },
+                "sum_doc_freq": {
+                  "type": "integer"
+                }
+              }
+            },
+            "terms": {
+              "type": "nested",
+              "properties": {
+                "gram": {
+                  "type": "text"
+                },
+                "term_count": {
+                  "type": "integer"
+                },
+                "term": {
+                  "type": "text"
+                }
               }
             }
           }
@@ -108,5 +107,4 @@
       }
     }
   }
-}
 }
