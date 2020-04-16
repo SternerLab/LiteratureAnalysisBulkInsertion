@@ -7,7 +7,7 @@ import pprint
 import sys
 import time
 from multiprocessing import Process, Manager
-
+import elasticsearch.helpers
 import elasticsearch_connection
 import utils
 
@@ -70,135 +70,96 @@ def process_doc(document, shared_doc_dict, index, terms, doc_id):
     shared_doc_dict[index] = temp_dict
 
 
-def process(elasticsearch_client, data_directory, initial_offset):
-    manager = Manager()
-    is_done = False
-    offset = initial_offset
-    # TODO: Processing limit number of records each time
-    limit = 25
-
-    result_template = {}
-    for i in range(limit):
-        result_template[i] = {}
-
-    fetched_count = 0
-    count = initial_offset // limit
+def get_scanner(elasticsearch_client, size):
     query = {
-        'size': limit,
+        'size': size,
         'query': {
             'match_all': {}
         }
     }
+    scanner = elasticsearch.helpers.scan(
+        client=elasticsearch_client,
+        scroll='2m',
+        query=query,
+        index=INDEX_NAME)
+    return scanner
 
-    fetched_docs = elasticsearch_client.search(index=INDEX_NAME, doc_type=DOC_TYPE, body=query, scroll='3m')
-    scroll = fetched_docs['_scroll_id']
-    fetched_docs = fetched_docs["hits"]["hits"]
-    print "starting offset of this batch is: {}".format(offset)
-    fetched_ids = [doc["_id"] for _, doc in enumerate(fetched_docs)]
-    time.sleep(1)
-    mTerms = elasticsearch_client.mtermvectors(index=INDEX_NAME, doc_type=DOC_TYPE, ids=fetched_ids, offsets=False,
-                                               fields=["plain_text"],
-                                               positions=False, payloads=False, term_statistics=True,
-                                               field_statistics=True)
 
-    processes = []
-    print("Starting batch: {}".format(count+1))
-    shared_doc_dict = manager.dict(result_template)
-    for index, doc in enumerate(fetched_docs):
-        processes.append(Process(target=process_doc,
-                                 args=(
-                                     doc, shared_doc_dict, index, mTerms["docs"][index], doc["_id"])))
+def process(elasticsearch_client, data_directory, initial_offset):
+    manager = Manager()
+    offset = initial_offset
+    # TODO: Processing limit number of records each time
+    limit = 2
+    result_template = {}
+    for i in range(limit):
+        result_template[i] = {}
 
-        processes[index].start()
+    count = initial_offset // limit
+    fetched_docs = []
+    fetched_ids = []
+    scanner = get_scanner(elasticsearch_client, limit)
 
-    offset += limit
-    for i in range(len(fetched_docs)):
-        try:
-            processes[i].join()
-        except Exception as e:
-            logging.info(
-                "{} couldn't find process as it wasn't started due to some error".format(e))
-
-    if len(fetched_docs) < limit:
-        logging.info(
-            "This is last batch.")
-        is_done = True
-
-    count += 1
-
-    utils.json_file_writer(os.path.join(data_directory, "result_{}.json".format(count)), "",
-                           json.dumps(list(shared_doc_dict.values())))
-    logging.info(
-        "Batch {} completed and has {} records in it and result saved in file: {}. It contains {} records".format(
-            count, len(
-                list(shared_doc_dict.values())), os.path.join(data_directory, "result_{}.json".format(count)),
-            len(list(shared_doc_dict.values()))))
-    # print("{} scroll id data extracted successfully.".format(scroll))
-    logging.info("{} scroll id data extracted successfully.".format(scroll))
-    time.sleep(5)
-    while not is_done:
-        batch_start_time = time.time()
-        try:
-            fetched_count += 1
-            print "starting offset of this batch is: {}".format(offset)
-            fetched_docs = elasticsearch_client.scroll(scroll_id=scroll, scroll='5m')
-            fetched_count = 0
-        except Exception as e:
-            time.sleep(5)
-            if fetched_count == 3:
-                logging.info(
-                    "Terminating script as connection is timeout more than 3 times.")
-                print "Terminating script as connection is timeout more than 3 times."
-                print fetched_docs
-                break
-            logging.info(
-                "{} Couldn't get records trying again for limit:{} and offset:{}".format(e, limit, offset))
-            continue
-        scroll = fetched_docs['_scroll_id']
-        fetched_docs = fetched_docs["hits"]["hits"]
-        fetched_ids = [doc["_id"] for _, doc in enumerate(fetched_docs)]
-        time.sleep(1)
-        mTerms = elasticsearch_client.mtermvectors(index=INDEX_NAME, doc_type=DOC_TYPE, ids=fetched_ids, offsets=False,
-                                                   fields=["plain_text"],
-                                                   positions=False, payloads=False, term_statistics=True,
-                                                   field_statistics=True)
-
-        processes = []
-        print("Starting batch: {}".format(count))
-        shared_doc_dict = manager.dict(result_template)
-        for index, doc in enumerate(fetched_docs):
-            processes.append(Process(target=process_doc,
-                                     args=(
-                                         doc, shared_doc_dict, index, mTerms["docs"][index], doc["_id"])))
-
-            processes[index].start()
-
-        offset += limit
-        for i in range(len(fetched_docs)):
+    limit_counter = 0
+    mTerms_counter = 0
+    for doc in scanner:
+        print "==================================================================================="
+        if limit_counter < limit:
+            print "Fetching docs for batch: {} and id: {}".format(count, doc["_id"])
+            fetched_docs.append(doc)
+            fetched_ids.append(doc["_id"])
+            limit_counter += 1
+        else:
+            print(fetched_ids)
+            print("Starting batch: {}".format(count))
+            batch_start_time = time.time()
+            time.sleep(1)
             try:
-                processes[i].join()
+                mTerms = elasticsearch_client.mtermvectors(index=INDEX_NAME, doc_type=DOC_TYPE, ids=fetched_ids,
+                                                           offsets=False,
+                                                           fields=["plain_text"],
+                                                           positions=False, payloads=False, term_statistics=True,
+                                                           field_statistics=True)
+                mTerms_counter = 0
             except Exception as e:
-                logging.info(
-                    "{} couldn't find process as it wasn't started due to some error".format(e))
+                if mTerms_counter == 0:
+                    logging.info("{} m_vectors failed 3 times and stopping the script".format(e))
+                    break
+                time.sleep(3)
+                mTerms_counter += 1
+                continue
 
-        if len(fetched_docs) < limit:
+            processes = []
+            shared_doc_dict = manager.dict(result_template)
+            for index, document in enumerate(fetched_docs):
+                processes.append(Process(target=process_doc,
+                                         args=(
+                                             document, shared_doc_dict, index, mTerms["docs"][index], document["_id"])))
+
+                processes[index].start()
+
+            offset += limit
+            for i in range(len(fetched_docs)):
+                try:
+                    processes[i].join()
+                except Exception as e:
+                    logging.info(
+                        "{} couldn't find process as it wasn't started due to some error".format(e))
+
+            utils.json_file_writer(os.path.join(data_directory, "result_{}.json".format(count)), "",
+                                   json.dumps(list(shared_doc_dict.values())))
             logging.info(
-                "This is last batch.")
-            is_done = True
+                "Batch {} completed and has {} records in it and result saved in file: {}. It contains {} records".format(
+                    count, len(
+                        list(shared_doc_dict.values())),
+                    os.path.join(data_directory, "result_{}.json".format(count)),
+                    len(list(shared_doc_dict.values()))))
+            print("batch {} completed in {}".format(count, time.time() - batch_start_time))
+            time.sleep(1)
+            count += 1
+            limit_counter = 0
+            fetched_docs = []
+            fetched_ids = []
 
-        count += 1
-
-        utils.json_file_writer(os.path.join(data_directory, "result_{}.json".format(count)), "",
-                               json.dumps(list(shared_doc_dict.values())))
-        logging.info(
-            "Batch {} completed and has {} records in it and result saved in file: {}. It contains {} records".format(
-                count, len(
-                    list(shared_doc_dict.values())), os.path.join(data_directory, "result_{}.json".format(count)),
-                len(list(shared_doc_dict.values()))))
-        print("batch {} completed in {}".format(count, time.time() - batch_start_time))
-        # print("{} scroll id data extracted successfully.".format(scroll))
-        logging.info("{} scroll id data extracted successfully.".format(scroll))
-        time.sleep(1)
 
 def init(ES_AUTH_USER, ES_AUTH_PASSWORD, ES_HOST, data_directory, initial_offset):
     start_time = time.time()
