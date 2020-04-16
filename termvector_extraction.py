@@ -13,7 +13,7 @@ class TermvectorExtraction:
         self.elasticsearch_client = elasticsearch_client
 
     def get_termvectors_for_doc(self, doc_id, fields):
-        return self.elasticsearch_client.mtermvectors(index=self.INDEX_NAME, ids=doc_id, offsets=False, fields=fields,
+        return self.elasticsearch_client.mtermvectors(index=self.INDEX_NAME, doc_type=self.DOC_TYPE, ids=doc_id, offsets=False, fields=fields,
                                                 positions=False, payloads=False)
 
 
@@ -31,4 +31,5 @@ if __name__ == "__main__":
     #                                       index=INDEX_NAME)
     # print(type(all_docs))
     # for doc in all_docs:
-    pprint.pprint(termvector_extractor.get_termvectors_for_doc([14,19], ['plain_text']))
+    termvector_extractor.get_termvectors_for_doc(['14','19'], ['plain_text'])
+

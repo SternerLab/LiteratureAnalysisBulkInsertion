@@ -6,14 +6,16 @@ import os
 import pprint
 import sys
 import time
+from json import JSONEncoder
 from multiprocessing import Process, Manager
 import elasticsearch.helpers
 import elasticsearch_connection
 import utils
+from elasticsearch_dsl import Search
 
 sys.setrecursionlimit(10000)
 
-INDEX_NAME = "beckett_jstor_ngrams_all"
+INDEX_NAME = "beckett_jstor_ngrams_part"
 DOC_TYPE = "article"
 
 
@@ -61,11 +63,10 @@ def term_vector_processing(term_vector, doc_id, index):
 def process_doc(document, shared_doc_dict, index, terms, doc_id):
     temp_dict = shared_doc_dict[index]
 
-    temp_dict["year"] = document["_source"]["article"]["article-meta"]["year"]
-    temp_dict["year"] = document["_source"]["article"]["article-meta"]["year"]
-    temp_dict["article-id"] = document["_source"]["article"]["article-meta"]["article-id"]
-    temp_dict["journal-id"] = document["_source"]["article"]["journal-meta"]["journal-id"]
-    temp_dict["journal-title"] = document["_source"]["article"]["journal-meta"]["journal-title"]
+    temp_dict["year"] = [str(i) for i in document.article["article-meta"]["year"]]
+    temp_dict["article-id"] = document.article["article-meta"]["article-id"].to_dict()
+    temp_dict["journal-id"] = [i.to_dict() for i in document.article["journal-meta"]["journal-id"]]
+    temp_dict["journal-title"] = document.article["journal-meta"]["journal-title"]
     temp_dict["term_vectors"] = term_vector_processing(terms, doc_id, index)
     shared_doc_dict[index] = temp_dict
 
@@ -79,7 +80,7 @@ def get_scanner(elasticsearch_client, size):
     }
     scanner = elasticsearch.helpers.scan(
         client=elasticsearch_client,
-        scroll='2m',
+        scroll='1s',
         query=query,
         index=INDEX_NAME)
     return scanner
@@ -89,7 +90,7 @@ def process(elasticsearch_client, data_directory, initial_offset):
     manager = Manager()
     offset = initial_offset
     # TODO: Processing limit number of records each time
-    limit = 2
+    limit = 25
     result_template = {}
     for i in range(limit):
         result_template[i] = {}
@@ -97,19 +98,18 @@ def process(elasticsearch_client, data_directory, initial_offset):
     count = initial_offset // limit
     fetched_docs = []
     fetched_ids = []
-    scanner = get_scanner(elasticsearch_client, limit)
-
+    s = Search(using=elasticsearch_client, index=INDEX_NAME, doc_type=DOC_TYPE)
+    s.update_from_dict({"size": limit, "query": {"match_all": {}}})
     limit_counter = 0
     mTerms_counter = 0
-    for doc in scanner:
-        print "==================================================================================="
+    doc_id_file = open("./doc_id_list.csv", 'a')
+    for doc in s.scan():
         if limit_counter < limit:
-            print "Fetching docs for batch: {} and id: {}".format(count, doc["_id"])
             fetched_docs.append(doc)
-            fetched_ids.append(doc["_id"])
+            fetched_ids.append(doc.meta.id)
+            doc_id_file.write(doc.meta.id)
             limit_counter += 1
         else:
-            print(fetched_ids)
             print("Starting batch: {}".format(count))
             batch_start_time = time.time()
             time.sleep(1)
@@ -133,7 +133,8 @@ def process(elasticsearch_client, data_directory, initial_offset):
             for index, document in enumerate(fetched_docs):
                 processes.append(Process(target=process_doc,
                                          args=(
-                                             document, shared_doc_dict, index, mTerms["docs"][index], document["_id"])))
+                                             document, shared_doc_dict, index, mTerms["docs"][index],
+                                             document.meta.id)))
 
                 processes[index].start()
 
@@ -159,6 +160,7 @@ def process(elasticsearch_client, data_directory, initial_offset):
             limit_counter = 0
             fetched_docs = []
             fetched_ids = []
+    doc_id_file.close()
 
 
 def init(ES_AUTH_USER, ES_AUTH_PASSWORD, ES_HOST, data_directory, initial_offset):

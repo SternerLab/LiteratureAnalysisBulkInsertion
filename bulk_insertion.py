@@ -69,8 +69,7 @@ def init(ES_AUTH_USER, ES_AUTH_PASSWORD, ES_HOST, dir_path, index_name, doc_type
             logging.info(
                 "{} and due to this couldn't insert records from file: {}".format(e, file))
             print "Failed to insert records from file: {}".format(e, file)
-        if i == 1:
-            break
+
 
 
 if __name__ == "__main__":
@@ -78,6 +77,8 @@ if __name__ == "__main__":
     ES_AUTH_PASSWORD = sys.argv[2]
     ES_HOST = sys.argv[3]
     dir_path = sys.argv[4]
+    dir_path = r"D:\ASU_Part_time\LiteratureAnalysis\FullTermvectorResultJsonData\\"
+
     index_name = sys.argv[5]
     doc_type = sys.argv[6]
     start_time = time.time()
