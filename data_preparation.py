@@ -1,21 +1,21 @@
 #!/usr/bin/env python2
 import json
 import logging
+import math
 import multiprocessing
 import os
-import pprint
 import sys
 import time
-from json import JSONEncoder
 from multiprocessing import Process, Manager
+
 import elasticsearch.helpers
+
 import elasticsearch_connection
 import utils
-from elasticsearch_dsl import Search
 
 sys.setrecursionlimit(10000)
 
-INDEX_NAME = "beckett_jstor_ngrams_part"
+INDEX_NAME = "beckett_jstor_ngrams_all"
 DOC_TYPE = "article"
 
 
@@ -41,7 +41,7 @@ def term_process(term_list, term, term_dict):
     term_list.append(return_dict)
 
 
-def term_vector_processing(term_vector, doc_id, index):
+def term_vector_processing(term_vector, index):
     try:
         cpu_count = get_cpu_count()
         pool = multiprocessing.Pool(cpu_count)
@@ -56,18 +56,18 @@ def term_vector_processing(term_vector, doc_id, index):
                               "terms": list(term_list)}
         return return_term_vector
     except KeyError as e:
-        logging.error("{}:  for doc_id :{} and index: {}".format(e, doc_id, index))
+        logging.error("{}: occured for one doc in index: {}".format(e, index))
         return {}
 
 
-def process_doc(document, shared_doc_dict, index, terms, doc_id):
+def process_doc(document, shared_doc_dict, index, doc_id):
     temp_dict = shared_doc_dict[index]
-
-    temp_dict["year"] = [str(i) for i in document.article["article-meta"]["year"]]
-    temp_dict["article-id"] = document.article["article-meta"]["article-id"].to_dict()
-    temp_dict["journal-id"] = [i.to_dict() for i in document.article["journal-meta"]["journal-id"]]
-    temp_dict["journal-title"] = document.article["journal-meta"]["journal-title"]
-    temp_dict["term_vectors"] = term_vector_processing(terms, doc_id, index)
+    temp_dict[doc_id] = {}
+    temp_dict[doc_id]["year"] = document["article-meta"]["year"]
+    temp_dict[doc_id]["article-id"] = document["article-meta"]["article-id"]
+    temp_dict[doc_id]["journal-id"] = document["journal-meta"]["journal-id"]
+    temp_dict[doc_id]["journal-title"] = document["journal-meta"]["journal-title"]
+    temp_dict[doc_id]["term_vectors"] = {}
     shared_doc_dict[index] = temp_dict
 
 
@@ -86,6 +86,34 @@ def get_scanner(elasticsearch_client, size):
     return scanner
 
 
+def scroll(elasticsearch_client, index, doc_type, query_body, page_size=25, debug=False, scroll='10h'):
+    page = elasticsearch_client.search(index=index, doc_type=doc_type, scroll=scroll, size=page_size, body=query_body)
+    sid = page['_scroll_id']
+    scroll_size = page['hits']['total']
+    total_pages = math.ceil(scroll_size / page_size)
+    page_counter = 0
+    if debug:
+        print('Total items : {}'.format(scroll_size))
+        print('Total pages : {}'.format(math.ceil(scroll_size / page_size)))
+    # Start scrolling
+    while scroll_size > 0:
+        # Get the number of results that we returned in the last scroll
+        scroll_size = len(page['hits']['hits'])
+        if scroll_size > 0:
+            if debug:
+                print('> Scrolling page {} : {} items'.format(page_counter, scroll_size))
+            yield total_pages, page_counter, scroll_size, page
+        # get next page
+        try:
+            page = elasticsearch_client.scroll(scroll_id=sid, scroll='10h')
+        except Exception as e:
+            if e[0] == 404:
+                logging.info(e)
+        page_counter += 1
+        # Update the scroll ID
+        sid = page['_scroll_id']
+
+
 def process(elasticsearch_client, data_directory, initial_offset):
     manager = Manager()
     offset = initial_offset
@@ -98,68 +126,71 @@ def process(elasticsearch_client, data_directory, initial_offset):
     count = initial_offset // limit
     fetched_docs = []
     fetched_ids = []
-    s = Search(using=elasticsearch_client, index=INDEX_NAME, doc_type=DOC_TYPE)
-    s.update_from_dict({"size": limit, "query": {"match_all": {}}})
-    limit_counter = 0
-    mTerms_counter = 0
+    query = {
+        "_source": {
+            "includes": ["article.article-meta.year", "article.article-meta.article-id",
+                         "article.journal-meta.journal-id", "article.journal-meta.journal-title"]
+        },
+        'query': {
+            'match_all': {}
+        }
+    }
     doc_id_file = open("./doc_id_list.csv", 'a')
-    for doc in s.scan():
-        if limit_counter < limit:
-            fetched_docs.append(doc)
-            fetched_ids.append(doc.meta.id)
-            doc_id_file.write(doc.meta.id)
-            limit_counter += 1
-        else:
-            print("Starting batch: {}".format(count))
-            batch_start_time = time.time()
-            time.sleep(1)
+    for total_pages, page_counter, page_items, page_data in scroll(elasticsearch_client, INDEX_NAME, DOC_TYPE, query,
+                                                                   page_size=limit):
+        print('total_pages={}, page_counter={}, page_items={}'.format(total_pages, page_counter, page_items))
+        batch_start_time = time.time()
+        print("Batch {} started".format(count))
+        for doc in page_data["hits"]["hits"]:
+            fetched_docs.append(doc["_source"]["article"])
+            print doc["_source"]["article"]["article-meta"]["article-id"]
+            print doc["_source"]["article"]["article-meta"]["year"]
+            fetched_ids.append(doc["_id"])
+        # try:
+        #     time.sleep(300)
+        #     mTerms = elasticsearch_client.mtermvectors(index=INDEX_NAME, doc_type=DOC_TYPE, ids=fetched_ids,
+        #                                                offsets=False,
+        #                                                fields=["plain_text"],
+        #                                                positions=False, payloads=False, term_statistics=True,
+        #                                                field_statistics=True)
+        # except Exception as e:
+        #     logging.info("{} m_vectors failed 3 times and stopping the script".format(e))
+        #     time.sleep(3)
+        #     continue
+
+        processes = []
+        shared_doc_dict = manager.dict(result_template)
+        for index, doc in enumerate(fetched_docs):
+            processes.append(Process(target=process_doc,
+                                     args=(
+                                         doc, shared_doc_dict, index, fetched_ids[index])))
+
+            processes[index].start()
+
+        offset += limit
+        for i in range(len(fetched_docs)):
             try:
-                mTerms = elasticsearch_client.mtermvectors(index=INDEX_NAME, doc_type=DOC_TYPE, ids=fetched_ids,
-                                                           offsets=False,
-                                                           fields=["plain_text"],
-                                                           positions=False, payloads=False, term_statistics=True,
-                                                           field_statistics=True)
-                mTerms_counter = 0
+                processes[i].join()
             except Exception as e:
-                if mTerms_counter == 0:
-                    logging.info("{} m_vectors failed 3 times and stopping the script".format(e))
-                    break
-                time.sleep(3)
-                mTerms_counter += 1
-                continue
+                logging.info(
+                    "{} couldn't find process as it wasn't started due to some error".format(e))
 
-            processes = []
-            shared_doc_dict = manager.dict(result_template)
-            for index, document in enumerate(fetched_docs):
-                processes.append(Process(target=process_doc,
-                                         args=(
-                                             document, shared_doc_dict, index, mTerms["docs"][index],
-                                             document.meta.id)))
+        utils.json_file_writer(os.path.join(data_directory, "result_{}.json".format(count)), "",
+                               json.dumps(list(shared_doc_dict.values())))
+        logging.info(
+            "Batch {} completed and has {} records in it and result saved in file: {}. It contains {} records".format(
+                count, len(
+                    list(shared_doc_dict.values())),
+                os.path.join(data_directory, "result_{}.json".format(count)),
+                len(list(shared_doc_dict.values()))))
+        print("batch {} completed in {}".format(count, time.time() - batch_start_time))
+        count += 1
+        if count == 5:
+            break
+        fetched_docs = []
+        fetched_ids = []
+        time.sleep(5)
 
-                processes[index].start()
-
-            offset += limit
-            for i in range(len(fetched_docs)):
-                try:
-                    processes[i].join()
-                except Exception as e:
-                    logging.info(
-                        "{} couldn't find process as it wasn't started due to some error".format(e))
-
-            utils.json_file_writer(os.path.join(data_directory, "result_{}.json".format(count)), "",
-                                   json.dumps(list(shared_doc_dict.values())))
-            logging.info(
-                "Batch {} completed and has {} records in it and result saved in file: {}. It contains {} records".format(
-                    count, len(
-                        list(shared_doc_dict.values())),
-                    os.path.join(data_directory, "result_{}.json".format(count)),
-                    len(list(shared_doc_dict.values()))))
-            print("batch {} completed in {}".format(count, time.time() - batch_start_time))
-            time.sleep(1)
-            count += 1
-            limit_counter = 0
-            fetched_docs = []
-            fetched_ids = []
     doc_id_file.close()
 
 

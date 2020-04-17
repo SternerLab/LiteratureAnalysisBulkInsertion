@@ -63,13 +63,13 @@ def init(ES_AUTH_USER, ES_AUTH_PASSWORD, ES_HOST, dir_path, index_name, doc_type
 
     for i, file in enumerate(files_to_proceed):
         try:
-            json_iterator = JsonIterator("", file, index_name, doc_type)
-            insert_bulk_data_parallely(elasticsearch_client, json_iterator, index_name, i+36)
+            json_iterator = JsonIterator("", "./mterms.json", index_name, doc_type)
+            insert_bulk_data_parallely(elasticsearch_client, json_iterator, index_name, i + 36)
         except Exception as e:
             logging.info(
                 "{} and due to this couldn't insert records from file: {}".format(e, file))
             print "Failed to insert records from file: {}".format(e, file)
-
+        break
 
 
 if __name__ == "__main__":
