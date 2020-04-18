@@ -59,11 +59,11 @@ def init(ES_AUTH_USER, ES_AUTH_PASSWORD, ES_HOST, dir_path, index_name, doc_type
     db_connection = ElasticsearchConnection(ES_HOST, ES_AUTH_USER, ES_AUTH_PASSWORD)
     elasticsearch_client = db_connection.get_elasticsearch_client()
 
-    create_new_index("./mapping.json", index_name, elasticsearch_client)
-
+    # create_new_index("./mapping.json", index_name, elasticsearch_client)
+    files_to_proceed = ["./mterms.json"]
     for i, file in enumerate(files_to_proceed):
         try:
-            json_iterator = JsonIterator("", "./mterms.json", index_name, doc_type)
+            json_iterator = JsonIterator("", file, index_name, doc_type)
             insert_bulk_data_parallely(elasticsearch_client, json_iterator, index_name, i + 36)
         except Exception as e:
             logging.info(
