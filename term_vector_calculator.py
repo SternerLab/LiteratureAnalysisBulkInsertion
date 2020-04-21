@@ -59,7 +59,6 @@ def get_terms(fetched_id, elasticsearch_client):
                                             field_statistics=False)
 
 
-
 def get_term_vectors(file, elasticsearch_client, file_number):
     manager = multiprocessing.Manager()
     data = json.loads(utils.json_file_reader(file, ""))
@@ -78,15 +77,12 @@ def get_term_vectors(file, elasticsearch_client, file_number):
     shared_term_dict = manager.dict()
     for index, fetched_id in enumerate(fetched_ids):
         try:
-            time.sleep(1)
+            time.sleep(0.3)
             terms = elasticsearch_client.termvectors(index=INDEX_NAME, doc_type=DOC_TYPE, id=fetched_id,
-                                            offsets=False,
-                                            fields=["plain_text"],
-                                            positions=False, payloads=False, term_statistics=True,
-                                            field_statistics=False)
-
-
-            print("Got terms for id: {}".format(fetched_id))
+                                                     offsets=False,
+                                                     fields=["plain_text"],
+                                                     positions=False, payloads=False, term_statistics=True,
+                                                     field_statistics=False)
         except Exception as e:
             try:
                 terms = elasticsearch_client.termvectors(index=INDEX_NAME, doc_type=DOC_TYPE, id=fetched_id,
@@ -94,7 +90,6 @@ def get_term_vectors(file, elasticsearch_client, file_number):
                                                          fields=["plain_text"],
                                                          positions=False, payloads=False, term_statistics=True,
                                                          field_statistics=False)
-                print("Got terms for id: {}".format(fetched_id))
             except Exception as e:
                 non_processed_id.append(fetched_id)
                 logging.info(
@@ -105,9 +100,8 @@ def get_term_vectors(file, elasticsearch_client, file_number):
         processes.append(Process(target=process_doc,
                                  args=(shared_term_dict, fetched_id, terms)))
 
-        processes[len(processes)-1].start()
+        processes[len(processes) - 1].start()
 
-    print("Total Processes Started {}".format(len(processes)))
     for i in range(len(processes)):
         try:
             processes[i].join()
@@ -115,6 +109,9 @@ def get_term_vectors(file, elasticsearch_client, file_number):
             logging.info(
                 "{} couldn't find process as it wasn't started due to some error".format(e))
 
+    print("Non processed document count: {}".format(len(set(non_processed_id))))
+    logging.info(
+        "Non processed document count: {}".format(len(set(non_processed_id))))
     for index, fetched_id in enumerate(fetched_ids):
         if fetched_id not in set(non_processed_id):
             final_data[fetched_id]["term_vectors"] = shared_term_dict[fetched_id]
